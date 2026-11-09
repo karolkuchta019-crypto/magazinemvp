@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prosty System Magazynowy</title>
+    
+    <!-- Bootstrap 5 - ładny wygląd bez pisania dużo CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        body {
+            background-color: #f0f2f5;
+            padding-top: 20px;
+            padding-bottom: 40px;
+        }
+        .card {
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: none;
+            margin-bottom: 20px;
+        }
+        .stan-dostepny {
+            color: #198754;
+            font-weight: 600;
+        }
+        .stan-zarezerwowany {
+            color: #fd7e14;
+            font-weight: 600;
+        }
+        .historia-item {
+            font-size: 0.9rem;
+            border-left: 3px solid #0d6efd;
+            padding-left: 10px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1 class="text-center mb-4"> System Magazynowy</h1>
+    <p class="text-center text-muted mb-4">Prosty system szkolny • Dane zapisywane lokalnie w przeglądarce</p>
+
+    <!-- ==================== DODAWANIE NOWEGO PRODUKTU ==================== -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <strong>Dodaj nowy produkt</strong>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-5">
+                    <input type="text" id="nowaNazwa" class="form-control" placeholder="Nazwa produktu (np. Śruba M8)">
+                </div>
+                <div class="col-md-3">
+                    <input type="text" id="nowaJednostka" class="form-control" placeholder="Jednostka (szt./kg)" value="szt.">
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-primary w-100" onclick="dodajProdukt()">Dodaj produkt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== LISTA PRODUKTÓW ==================== -->
+    <div class="card">
+        <div class="card-header bg-dark text-white">
+            <strong>Stan magazynowy</strong>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Nazwa</th>
+                            <th>Jednostka</th>
+                            <th>Dostępny</th>
+                            <th>Zarezerwowany</th>
+                            <th>Razem</th>
+                            <th style="width: 280px;">Akcje</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaProduktow">
+                        <!-- Tutaj JavaScript wstawi produkty -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== AKTYWNE REZERWACJE ==================== -->
+    <div class="card">
+        <div class="card-header bg-warning">
+            <strong>Aktywne rezerwacje</strong>
+        </div>
+        <div class="card-body" id="listaRezerwacji">
+            <!-- Tutaj pojawią się aktywne rezerwacje -->
+        </div>
+    </div>
+
+    <!-- ==================== HISTORIA RUCHÓW ==================== -->
+    <div class="card">
+        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+            <strong>Historia ruchów</strong>
+            <button class="btn btn-sm btn-outline-light" onclick="wyczyscHistorie()">Wyczyść historię</button>
+        </div>
+        <div class="card-body" id="historiaRuchow" style="max-height: 300px; overflow-y: auto;">
+            <!-- Historia ruchów -->
+        </div>
+    </div>
+</div>
+
+<!-- ==================== MODALE (okienka popup) ==================== -->
+
+<!-- Modal: Przyjęcie / Zwrot / Wydanie -->
+<div class="modal fade" id="modalRuch" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalRuchTytul">Operacja</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="modalProduktId">
+                <input type="hidden" id="modalTypOperacji">
+                
+                <div class="mb-3">
+                    <label class="form-label">Produkt</label>
+                    <input type="text" id="modalNazwaProduktu" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ilość</label>
+                    <input type="number" id="modalIlosc" class="form-control" min="0.01" step="0.01" placeholder="Podaj ilość">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Uwagi (opcjonalnie)</label>
+                    <input type="text" id="modalUwagi" class="form-control" placeholder="np. Faktura FV/2024/15">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-primary" onclick="wykonajRuch()">Zatwierdź</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Rezerwacja -->
+<div class="modal fade" id="modalRezerwacja" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rezerwacja towaru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="rezProduktId">
+                
+                <div class="mb-3">
+                    <label class="form-label">Produkt</label>
+                    <input type="text" id="rezNazwaProduktu" class="form-control" readonly>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Ilość do zarezerwowania</label>
+                    <input type="number" id="rezIlosc" class="form-control" min="0.01" step="0.01">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Kto rezerwuje (opcjonalnie)</label>
+                    <input type="text" id="rezKto" class="form-control" placeholder="np. Jan Kowalski / Dział produkcji">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Anuluj</button>
+                <button type="button" class="btn btn-warning" onclick="wykonajRezerwacje()">Zarezerwuj</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/*
+=====================================================
+  PROSTY SYSTEM MAGAZYNOWY - JavaScript
+  Wszystko działa lokalnie w przeglądarce
+  Dane są zapisywane w localStorage
+=====================================================
+*/
+
+// ========== DANE ==========
+// Produkty i rezerwacje trzymamy w pamięci i zapisujemy do localStorage
+
+let produkty = [];          // lista wszystkich produktów
+let rezerwacje = [];        // lista aktywnych i historycznych rezerwacji
+let historia = [];          // historia ruchów magazynowych
+
+// ========== FUNKCJE POMOCNICZE ==========
+
+/**
+ * Zapisuje aktualny stan do localStorage
+ */
+function zapiszDane() {
+    localStorage.setItem('magazyn_produkty', JSON.stringify(produkty));
+    localStorage.setItem('magazyn_rezerwacje', JSON.stringify(rezerwacje));
+    localStorage.setItem('magazyn_historia', JSON.stringify(historia));
+}
+
+/**
+ * Wczytuje dane z localStorage przy starcie strony
+ */
+function wczytajDane() {
+    const p = localStorage.getItem('magazyn_produkty');
+    const r = localStorage.getItem('magazyn_rezerwacje');
+    const h = localStorage.getItem('magazyn_historia');
+
+    if (p) produkty = JSON.parse(p);
+    if (r) rezerwacje = JSON.parse(r);
+    if (h) historia = JSON.parse(h);
+}
+
+/**
+ * Generuje prosty unikalny ID
+ */
+function generujId() {
+    return Date.now() + Math.floor(Math.random() * 1000);
+}
+
+/**
+ * Formatuje datę do czytelnej postaci
+ */
+function formatujDate(data) {
+    return new Date(data).toLocaleString('pl-PL');
+}
+
+// ========== OPERACJE MAGAZYNOWE ==========
+
+/**
+ * 1. PRZYJĘCIE TOWARU
+ * Zwiększa stan dostępny produktu
+ */
+function przyjecieTowaru(produktId, ilosc, uwagi = "") {
+    const produkt = produkty.find(p => p.id === produktId);
+    if (!produkt) return;
+
+    produkt.stanDostepny += ilosc;
+
+    // Dodajemy wpis do historii
+    historia.unshift({
+        id: generujId(),
+        data: new Date().toISOString(),
+        typ: "przyjęcie",
+        produkt: produkt.nazwa,
+        ilosc: ilosc,
+        uwagi: uwagi
+    });
+
+    zapiszDane();
+    odswiezWidok();
+}
+
+/**
+ * 2. WYDANIE TOWARU
+ * Zmniejsza stan dostępny (tylko jeśli jest wystarczająco dużo)
+ */
+function wydanieTowaru(produktId, ilosc, uwagi = "") {
+    const produkt = produkty.find(p => p.id === produktId);
+    if (!produkt) return;
+
+    if (produkt.stanDostepny < ilosc) {
+        alert(`Za mało towaru!\nDostępne: ${produkt.stanDostepny} ${produkt.jednostka}\nChcesz wydać: ${ilosc}`);
+        return false;
+    }
+
+    produkt.stanDostepny -= ilosc;
+
+    historia.unshift({
+        id: generujId(),
+        data: new Date().toISOString(),
+        typ: "wydanie",
+        produkt: produkt.nazwa,
+        ilosc: ilosc,
+        uwagi: uwagi
+    });
+
+    zapiszDane();
+    odswiezWidok();
+    return true;
+}
+
+/**
+ * 3. REZERWACJA TOWARU
+ * Przenosi ilość ze stanu dostępnego do zarezerwowanego
+ */
+function rezerwujTowar(produktId, ilosc, kto = "") {
+    const produkt = produkty.find(p => p.id === produktId);
+    if (!produkt) return;
+
+    if (produkt.stanDostepny < ilosc) {
+        alert(`Za mało towaru do zarezerwowania!\nDostępne: ${produkt.stanDostepny}`);
+        return false;
+    }
+
+    // Przenosimy stany
+    produkt.stanDostepny -= ilosc;
+    produkt.stanZarezerwowany += ilosc;
+
+    // Tworzymy rezerwację
+    const nowaRezerwacja = {
+        id: generujId(),
+        produktId: produktId,
+        nazwaProduktu: produkt.nazwa,
+        ilosc: ilosc,
+        kto: kto || "—",
+        data: new Date().toISOString(),
+        aktywna: true
+    };
+
+    rezerwacje.unshift(nowaRezerwacja);
+
+    historia.unshift({
+        id: generujId(),
+        data: new Date().toISOString(),
+        typ: "rezerwacja",
+        produkt: produkt.nazwa,
+        ilosc: ilosc,
+        uwagi: kto ? `Zarezerwował: ${kto}` : ""
+    });
+
+    zapiszDane();
+    odswiezWidok();
+    return true;
+}
+
+/**
+ * 4. ZWOLNIENIE REZERWACJI
+ * Oddaje zarezerwowaną ilość z powrotem do stanu dostępnego
+ */
+function zwolnijRezerwacje(rezerwacjaId) {
+    const rez = rezerwacje.find(r => r.id === rezerwacjaId);
+    if (!rez || !rez.aktywna) {
+        alert("Ta rezerwacja jest już zwolniona lub nie istnieje.");
+        return;
+    }
+
+    const produkt = produkty.find(p => p.id === rez.produktId);
+    if (!produkt) return;
+
+    // Oddajemy towar
+    produkt.stanZarezerwowany -= rez.ilosc;
+    produkt.stanDostepny += rez.ilosc;
+
+    // Oznaczamy rezerwację jako nieaktywną
+    rez.aktywna = false;
+
+    historia.unshift({
+        id: generujId(),
+        data: new Date().toISOString(),
+        typ: "zwolnienie rezerwacji",
+        produkt: produkt.nazwa,
+        ilosc: rez.ilosc,
+        uwagi: `Zwolniono rezerwację (ID: ${rez.id})`
+    });
+
+    zapiszDane();
+    odswiezWidok();
+}
+
+/**
+ * 5. ZWROT TOWARU
+ * Działa praktycznie tak samo jak przyjęcie (zwiększa stan dostępny)
+ */
+function zwrotTowaru(produktId, ilosc, uwagi = "") {
+    const produkt = produkty.find(p => p.id === produktId);
+    if (!produkt) return;
+
+    produkt.stanDostepny += ilosc;
+
+    historia.unshift({
+        id: generujId(),
+        data: new Date().toISOString(),
+        typ: "zwrot",
+        produkt: produkt.nazwa,
+        ilosc: ilosc,
+        uwagi: uwagi
+    });
+
+    zapiszDane();
+    odswiezWidok();
+}
+
+// ========== FUNKCJE INTERFEJSU ==========
+
+/**
+ * Dodaje nowy produkt do magazynu
+ */
+function dodajProdukt() {
+    const nazwa = document.getElementById('nowaNazwa').value.trim();
+    const jednostka = document.getElementById('nowaJednostka').value.trim() || "szt.";
+
+    if (!nazwa) {
+        alert("Podaj nazwę produktu!");
+        return;
+    }
+
+    // Sprawdzamy czy produkt o takiej nazwie już istnieje
+    if (produkty.some(p => p.nazwa.toLowerCase() === nazwa.toLowerCase())) {
+        alert("Produkt o takiej nazwie już istnieje!");
+        return;
+    }
+
+    const nowy = {
+        id: generujId(),
+        nazwa: nazwa,
+        jednostka: jednostka,
+        stanDostepny: 0,
+        stanZarezerwowany: 0
+    };
+
+    produkty.push(nowy);
+    zapiszDane();
+    odswiezWidok();
+
+    // Czyścimy pola
+    document.getElementById('nowaNazwa').value = "";
+    document.getElementById('nowaJednostka').value = "szt.";
+}
+
+/**
+ * Otwiera modal do przyjęcia / wydania / zwrotu
+ */
+function otworzModalRuch(produktId, typ) {
+    const produkt = produkty.find(p => p.id === produktId);
+    if (!produkt) return;
+
+    document.getElementById('modalProduktId').value = produktId;
+    document.getElementById('modalTypOperacji').value = typ;
+    document.getElementById('modalNazwaProduktu').value = produkt.nazwa;
+    document.getElementById('modalIlosc').value = "";
+    document.getElementById('modalUwagi').value = "";
+
+    // Ustawiamy tytuł okienka
+    const tytuly = {
+        "przyjecie": "Przyjęcie towaru",
+        "wydanie": "Wydanie towaru",
+        "zwrot": "Zwrot towaru"
+    };
+    document.getElementById('modalRuchTytul').textContent = tytuly[typ] || "Operacja";
+
+    const modal = new bootstrap.Modal(document.getElementById('modalRuch'));
+    modal.show();
+}
+
+/**
+ * Wykonuje operację z modala (przyjęcie / wydanie / zwrot)
+ */
+function wykonajRuch() {
+    const produktId = parseInt(document.getElementById('modalProduktId').value);
+    const typ = document.getElementById('modalTypOperacji').value;
+    const ilosc = parseFloat(document.getElementById('modalIlosc').value);
+    const uwagi = document.getElementById('modalUwagi').value.trim();
+
+    if (!ilosc || ilosc <= 0) {
+        alert("Podaj poprawną ilość (większą od zera)!");
+        return;
+    }
+
+    if (typ === "przyjecie") {
+        przyjecieTowaru(produktId, ilosc, uwagi);
+    } else if (typ === "wydanie") {
+        const sukces = wydanieTowaru(produktId, ilosc, uwagi);
+        if (!sukces) return; // nie zamykamy modala jeśli błąd
+    } else if (typ === "zwrot") {
+        zwrotTowaru(produktId, ilosc, uwagi);
+    }
+
+    // Zamykamy modal
+    bootstrap.Modal.getInstance(document.getElementById('modalRuch')).hide();
+}
+
+/**
+ * Otwiera modal rezerwacji
+ */
+function otworzModalRezerwacja(produktId) {
+    const produkt = produkty.find(p => p.id === produktId);
+    if (!produkt) return;
+
+    document.getElementById('rezProduktId').value = produktId;
+    document.getElementById('rezNazwaProduktu').value = produkt.nazwa;
+    document.getElementById('rezIlosc').value = "";
+    document.getElementById('rezKto').value = "";
+
+    const modal = new bootstrap.Modal(document.getElementById('modalRezerwacja'));
+    modal.show();
+}
+
+/**
+ * Wykonuje rezerwację
+ */
+function wykonajRezerwacje() {
+    const produktId = parseInt(document.getElementById('rezProduktId').value);
+    const ilosc = parseFloat(document.getElementById('rezIlosc').value);
+    const kto = document.getElementById('rezKto').value.trim();
+
+    if (!ilosc || ilosc <= 0) {
+        alert("Podaj poprawną ilość!");
+        return;
+    }
+
+    const sukces = rezerwujTowar(produktId, ilosc, kto);
+    if (sukces) {
+        bootstrap.Modal.getInstance(document.getElementById('modalRezerwacja')).hide();
+    }
+}
+
+/**
+ * Odświeża całą listę produktów, rezerwacji i historii
+ */
+function odswiezWidok() {
+    // --- Lista produktów ---
+    const tbody = document.getElementById('listaProduktow');
+    tbody.innerHTML = "";
+
+    if (produkty.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center text-muted py-4">Brak produktów. Dodaj pierwszy produkt powyżej.</td></tr>`;
+    } else {
+        produkty.forEach(p => {
+            const razem = p.stanDostepny + p.stanZarezerwowany;
+            const wiersz = `
+                <tr>
+                    <td><strong>${p.nazwa}</strong></td>
+                    <td>${p.jednostka}</td>
+                    <td class="stan-dostepny">${p.stanDostepny}</td>
+                    <td class="stan-zarezerwowany">${p.stanZarezerwowany}</td>
+                    <td><strong>${razem}</strong></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <button class="btn btn-success" onclick="otworzModalRuch(${p.id}, 'przyjecie')" title="Przyjęcie">+</button>
+                            <button class="btn btn-danger" onclick="otworzModalRuch(${p.id}, 'wydanie')" title="Wydanie">−</button>
+                            <button class="btn btn-warning" onclick="otworzModalRezerwacja(${p.id})" title="Rezerwacja">R</button>
+                            <button class="btn btn-info text-white" onclick="otworzModalRuch(${p.id}, 'zwrot')" title="Zwrot">↩</button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tbody.innerHTML += wiersz;
+        });
+    }
+
+    // --- Aktywne rezerwacje ---
+    const kontenerRez = document.getElementById('listaRezerwacji');
+    const aktywne = rezerwacje.filter(r => r.aktywna);
+
+    if (aktywne.length === 0) {
+        kontenerRez.innerHTML = `<p class="text-muted mb-0">Brak aktywnych rezerwacji.</p>`;
+    } else {
+        let html = `<div class="table-responsive"><table class="table table-sm mb-0">
+            <thead><tr>
+                <th>Produkt</th><th>Ilość</th><th>Kto</th><th>Data</th><th></th>
+            </tr></thead><tbody>`;
+
+        aktywne.forEach(r => {
+            html += `
+                <tr>
+                    <td>${r.nazwaProduktu}</td>
+                    <td>${r.ilosc}</td>
+                    <td>${r.kto}</td>
+                    <td>${formatujDate(r.data)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="zwolnijRezerwacje(${r.id})">
+                            Zwolnij
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `</tbody></table></div>`;
+        kontenerRez.innerHTML = html;
+    }
+
+    // --- Historia ruchów ---
+    const kontenerHist = document.getElementById('historiaRuchow');
+    if (historia.length === 0) {
+        kontenerHist.innerHTML = `<p class="text-muted mb-0">Brak ruchów w historii.</p>`;
+    } else {
+        let html = "";
+        // Pokazujemy max 50 ostatnich wpisów
+        historia.slice(0, 50).forEach(h => {
+            const kolor = {
+                "przyjęcie": "success",
+                "wydanie": "danger",
+                "zwrot": "info",
+                "rezerwacja": "warning",
+                "zwolnienie rezerwacji": "secondary"
+            }[h.typ] || "primary";
+
+            html += `
+                <div class="historia-item">
+                    <span class="badge bg-${kolor}">${h.typ}</span>
+                    <strong>${h.produkt}</strong> — ${h.ilosc}
+                    <small class="text-muted"> • ${formatujDate(h.data)}</small>
+                    ${h.uwagi ? `<br><small class="text-muted">${h.uwagi}</small>` : ""}
+                </div>
+            `;
+        });
+        kontenerHist.innerHTML = html;
+    }
+}
+
+/**
+ * Czyści historię ruchów
+ */
+function wyczyscHistorie() {
+    if (confirm("Czy na pewno chcesz wyczyścić całą historię ruchów?")) {
+        historia = [];
+        zapiszDane();
+        odswiezWidok();
+    }
+}
+
+// ========== START APLIKACJI ==========
+// Po załadowaniu strony wczytujemy dane i odświeżamy widok
+window.onload = function() {
+    wczytajDane();
+    odswiezWidok();
+};
+</script>
+
+</body>
+</html>
